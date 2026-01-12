@@ -1,4 +1,4 @@
-# Grade Summary Data Cleaning Script (Refactored)
+# Grade Summary Data Cleaning Script (Optimized)
 # ===============================================
 
 # 1. Setup and Helper Functions
@@ -12,299 +12,239 @@ for (pkg in required_packages) {
   }
 }
 
-# --- Logging Setup ---
-# We define the log file path later after selecting files, but define the function now
+# --- Logger Setup ---
 log_event <- function(msg, context = "General", type = "INFO") {
-  entry <- sprintf("[%s] [%s] %s: %s", Sys.time(), type, context, msg)
-  # Write to console
-  cat(paste0(entry, "\n"))
-  # Write to file (if log_file exists)
+  entry <- sprintf("[%s] [%s] {%s}: %s", Sys.time(), type, context, msg)
   if (exists("log_file")) write(entry, file = log_file, append = TRUE)
+  # Only print Errors/Info to console, suppress Warnings from console as requested
+  if (type != "WARNING") cat(paste0(entry, "\n"))
 }
 
 # --- Generic Clean Filename ---
 clean_filename <- function(name) {
-  name %>% 
-    gsub("[ .:]", "_", .) %>% 
-    gsub("_{2,}", "_", .) %>% 
-    gsub("^_|_$", "", .)
+  name %>% gsub("[ .:]", "_", .) %>% gsub("_{2,}", "_", .) %>% gsub("^_|_$", "", .)
 }
 
-# --- Generic Summary Statistics Function ---
-# Replaces the 3 separate summary blocks
-calc_stats <- function(df, group_col_name) {
+# --- Generic Stats Calculator ---
+calc_stats <- function(df, group_col) {
   df %>%
-    group_by(across(all_of(group_col_name))) %>%
+    group_by(across(all_of(group_col))) %>%
     summarise(
       n_total = n(),
-      n_score_1 = sum(score == 1, na.rm = TRUE),
-      pct_score_1 = round(sum(score == 1, na.rm = TRUE) / n() * 100, 1),
-      n_score_2 = sum(score == 2, na.rm = TRUE),
-      pct_score_2 = round(sum(score == 2, na.rm = TRUE) / n() * 100, 1),
-      n_score_3 = sum(score == 3, na.rm = TRUE),
-      pct_score_3 = round(sum(score == 3, na.rm = TRUE) / n() * 100, 1),
-      n_score_4 = sum(score == 4, na.rm = TRUE),
-      pct_score_4 = round(sum(score == 4, na.rm = TRUE) / n() * 100, 1),
       meet_pct = round((sum(score %in% c(1, 2, 3), na.rm = TRUE) / n()) * 100, 1),
       mean_score = mean(as.numeric(score), na.rm = TRUE),
       sd_score = sd(as.numeric(score), na.rm = TRUE),
+      n_score_1 = sum(score == 1, na.rm = TRUE),
+      n_score_2 = sum(score == 2, na.rm = TRUE),
+      n_score_3 = sum(score == 3, na.rm = TRUE),
+      n_score_4 = sum(score == 4, na.rm = TRUE),
       .groups = 'drop'
     ) %>%
-    arrange(across(all_of(group_col_name)))
+    arrange(across(all_of(group_col)))
 }
 
-# --- Generic Plotting Function ---
-# Replaces create_stacked_bar, create_stacked_bar_attribute, create_stacked_bar_level
-plot_distribution <- function(data, group_col_name, title) {
+# --- Generic Plotter ---
+plot_distribution <- function(data, group_col, title) {
+  grp_sym <- sym(group_col)
   
-  # Ensure the group column is handled as a symbol for plotting
-  grp_sym <- sym(group_col_name)
-  
-  # Prepare Plot Data
-  plot_data <- data %>%
-    group_by(!!grp_sym, score_label) %>%
-    summarise(count = n(), .groups = 'drop') %>%
-    group_by(!!grp_sym) %>%
-    mutate(percentage = count / sum(count) * 100) %>%
-    ungroup() 
-  
-  # Prepare Stats Labels
-  summary_stats <- data %>%
+  # Stats for labels
+  stats <- data %>%
     group_by(!!grp_sym) %>%
     summarise(
-      mean_score = mean(as.numeric(score), na.rm = TRUE),
-      sd_score = sd(as.numeric(score), na.rm = TRUE),
-      meet_pct = round((sum(score %in% c(1, 2, 3), na.rm = TRUE) / n()) * 100, 1),
-      label = sprintf("Meet: %.1f%%\nmean: %.1f\nSD: %.2f", meet_pct, mean_score, sd_score),
+      label = sprintf("Meet: %.1f%%\nmean: %.1f\nSD: %.2f", 
+                      sum(score %in% 1:3)/n()*100, mean(as.numeric(score)), sd(as.numeric(score))),
       .groups = 'drop'
     )
   
-  # Create Plot
-  # Note: sorting logic is handled by factor levels in the main data
-  p <- ggplot(plot_data, aes(x = !!grp_sym, y = percentage, fill = score_label)) +
+  # Main Plot
+  data %>%
+    group_by(!!grp_sym, score_label) %>%
+    summarise(count = n(), .groups = 'drop') %>%
+    group_by(!!grp_sym) %>%
+    mutate(pct = count / sum(count) * 100) %>%
+    ggplot(aes(x = !!grp_sym, y = pct, fill = score_label)) +
     geom_bar(stat = "identity", position = position_stack(reverse = TRUE)) +
-    geom_richtext(aes(label = paste0("<b>", count, "</b><span style='font-size:7pt'>(", 
-                                     sprintf("%.0f", percentage), "%)</span>")), 
-                  position = position_stack(vjust = 0.5),
-                  color = "white", fill = NA, label.color = NA, size = 2.8) +
-    geom_text(data = summary_stats, aes(x = !!grp_sym, y = 105, label = label),
-              inherit.aes = FALSE, size = 2, vjust = 0) +
-    scale_fill_manual(values = c("Fail" = "#D32F2F", "Minimal" = "#FFA726",
-                                 "Adequate" = "#66BB6A", "Exceeds" = "#2E7D32")) +
-    guides(fill = guide_legend(reverse = TRUE)) +
-    labs(title = str_wrap(title, width = 40),
-         x = str_to_title(gsub("_", " ", group_col_name)),
-         y = "Percentage of Students (%)", fill = "Score") +
+    geom_richtext(aes(label = paste0("<b>", count, "</b><span style='font-size:7pt'>(", sprintf("%.0f", pct), "%)</span>")), 
+                  position = position_stack(vjust = 0.5), color = "white", fill = NA, label.color = NA, size = 2.8) +
+    geom_text(data = stats, aes(x = !!grp_sym, y = 105, label = label), inherit.aes = FALSE, size = 2, vjust = 0) +
+    scale_fill_manual(values = c("Fail"="#D32F2F", "Minimal"="#FFA726", "Adequate"="#66BB6A", "Exceeds"="#2E7D32")) +
+    labs(title = str_wrap(title, 40), x = str_to_title(gsub("_", " ", group_col)), y = "% Students", fill = "Score") +
     coord_cartesian(ylim = c(0, 130)) +
-    theme_classic(base_size = 15) +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1),
-          plot.title = element_text(hjust = 0.5, face = "bold"))
-  
-  return(p)
+    theme_classic(base_size = 14) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), plot.title = element_text(hjust = 0.5, face = "bold"))
 }
 
-# --- Generic Single Variable Plot (For isolated plots) ---
-plot_single_iso <- function(data, group_col, value) {
-  sub_data <- data %>% filter(.data[[group_col]] == value)
+# --- Master Output Generator (The Loop Shortener) ---
+# This function handles the Excel + 3 Plots logic for ANY dataset (Combined or Single Course)
+generate_output_set <- function(data, folder_path, file_prefix, title_prefix, context_str) {
   
-  # Create a dummy column for x-axis since we are plotting a single item
-  p <- plot_distribution(sub_data %>% mutate(dummy = ""), "dummy", paste(group_col, value)) +
-    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
-    labs(x = NULL)
+  wb <- createWorkbook()
+  vars <- c("attribute", "indicator", "level_assessed")
   
-  return(p)
+  for (var in vars) {
+    # 1. Excel Data
+    addWorksheet(wb, paste0("By_", str_to_title(var)))
+    writeData(wb, paste0("By_", str_to_title(var)), calc_stats(data, var))
+    
+    # 2. Plotting
+    # Dynamic width: Level gets 2 inches per item, others get 0.8 inches
+    n_items <- length(unique(data[[var]]))
+    p_width <- if(var == "level_assessed") max(6, n_items * 2) else max(8, n_items * 0.8)
+    
+    p <- plot_distribution(data, var, paste(title_prefix, "-", var))
+    ggsave(file.path(folder_path, paste0(file_prefix, "_figure_", var, ".png")), 
+           p, width = p_width, height = 6, dpi = 300)
+  }
+  
+  saveWorkbook(wb, file.path(folder_path, paste0(file_prefix, "_summary.xlsx")), overwrite = TRUE)
+  log_event(paste("Saved outputs to", folder_path), context_str)
 }
 
-# 2. File Selection and Initial Processing
-# ----------------------------------------
-file_paths <- tk_choose.files(caption = "Select Excel files", filters = matrix(c("Excel", ".xlsx;.xls"), 1, 2))
+# 2. File Selection
+# -----------------
+cat("\n>>> PLEASE SELECT FILES IN THE POP-UP WINDOW <<<\n")
+flush.console() # Forces the message to appear immediately
+
+file_paths <- tk_choose.files(caption = "Select Excel Files", filters = matrix(c("Excel", ".xlsx;.xls"), 1, 2))
 if (length(file_paths) == 0) stop("No files selected.")
 
-# Initialize Log
+# Init Log
 log_file <- file.path(dirname(file_paths[1]), "processing_log.txt")
 write(paste("Run Date:", Sys.time(), "\n---"), file = log_file)
-cat(paste("Selected", length(file_paths), "files.\n"))
 
-# --- File Processing Function ---
-process_grade_file <- function(file_path) {
+# 3. Data Ingestion
+# -----------------
+process_file <- function(fp) {
   tryCatch({
-    log_event(paste("Reading", basename(file_path)), "FileIO")
-    raw_data <- read_excel(file_path, sheet = 1, col_names = FALSE)
+    raw <- read_excel(fp, sheet = 1, col_names = FALSE)
+    if(nrow(raw) < 11) return(NULL)
     
-    # Validation
-    if(nrow(raw_data) < 11) return(NULL)
+    # Extract Metadata & Data
+    meta_rows <- list(attr = 6, ind = 7, lvl = 8)
+    meta <- lapply(meta_rows, function(r) as.character(raw[r, -1]))
     
-    # Metadata extraction
-    course_name <- as.character(raw_data[1, 1])
-    # Extract numerics/strings
-    attr <- str_extract(as.character(raw_data[6, -1]), "\\d+")
-    ind  <- str_extract(as.character(raw_data[7, -1]), "\\d+\\.?\\d*")
-    lvl  <- as.character(raw_data[8, -1])
-    
-    # Student Data
-    s_data <- raw_data[11:nrow(raw_data), ]
+    s_data <- raw[11:nrow(raw), ]
     s_data <- s_data[!is.na(s_data[[1]]), ]
     if(nrow(s_data) == 0) return(NULL)
     
     # Reshape
-    colnames(s_data) <- c("student_number", paste0("A_", 1:length(attr)))
-    long_df <- s_data %>%
-      pivot_longer(cols = starts_with("A_"), names_to = "idx", values_to = "score") %>%
+    colnames(s_data) <- c("student_number", paste0("idx_", 1:length(meta$attr)))
+    s_data %>%
+      pivot_longer(-student_number, names_to = "idx", values_to = "score") %>%
       mutate(
-        idx_num = as.numeric(gsub("A_", "", idx)),
-        course_name = course_name,
-        attribute = attr[idx_num],
-        indicator = ind[idx_num],
-        level_assessed = lvl[idx_num],
+        i = as.numeric(gsub("idx_", "", idx)),
+        course_name = as.character(raw[1, 1]),
+        attribute = str_extract(meta$attr[i], "\\d+"),
+        indicator = str_extract(meta$ind[i], "\\d+\\.?\\d*"),
+        level_assessed = meta$lvl[i],
         student_id = paste(course_name, student_number, sep = "_")
       ) %>%
       filter(!is.na(score)) %>%
-      select(student_id, course_name, student_number, attribute, indicator, level_assessed, score)
-    
-    return(long_df)
+      select(student_id, course_name, attribute, indicator, level_assessed, score)
     
   }, error = function(e) {
-    log_event(e$message, basename(file_path), "ERROR")
-    return(list(error = TRUE, file = basename(file_path), msg = e$message))
+    log_event(e$message, basename(fp), "ERROR")
+    return(NULL) 
   })
 }
 
-# 3. Execution & Aggregation
-# --------------------------
-all_results <- lapply(file_paths, process_grade_file)
+cat("Reading files...\n")
+all_data <- bind_rows(lapply(file_paths, process_file))
 
-successful_data <- list()
-failed_files <- list()
+if (nrow(all_data) == 0) stop("No valid data found.")
 
-for (res in all_results) {
-  if (is.list(res) && !is.null(res$error)) failed_files[[length(failed_files) + 1]] <- res
-  else if (!is.null(res)) successful_data[[length(successful_data) + 1]] <- res
-}
-
-if (length(successful_data) == 0) stop("No valid data processed.")
-
-combined_data <- bind_rows(successful_data)
-
-# Factor Setup (Global)
-combined_data <- combined_data %>%
+# Global Formatting
+all_data <- all_data %>%
   mutate(
     course_name = factor(course_name),
     attribute = factor(attribute, levels = sort(unique(as.numeric(attribute)))),
     indicator = factor(indicator, levels = sort(unique(as.numeric(indicator)))),
     level_assessed = factor(level_assessed, levels = c("I", "D", "A")),
-    score_label = factor(score, levels = c("4", "3", "2", "1"), 
-                         labels = c("Fail", "Minimal", "Adequate", "Exceeds"))
+    score_label = factor(score, levels = c("4","3","2","1"), labels = c("Fail","Minimal","Adequate","Exceeds"))
   )
 
-# Output Setup
-output_folder <- dirname(file_paths[1])
-main_output_dir <- file.path(output_folder, "grade_outputs")
-dir.create(main_output_dir, showWarnings = FALSE, recursive = TRUE)
-write.csv(combined_data, file.path(main_output_dir, "cleaned_grade_data.csv"), row.names = FALSE)
+# Output Directory
+out_dir <- file.path(dirname(file_paths[1]), "grade_outputs")
+dir.create(out_dir, showWarnings = FALSE)
+write.csv(all_data, file.path(out_dir, "cleaned_grade_data.csv"), row.names = FALSE)
 
-# 4. Amalgamated Outputs (Vectorized)
-# -----------------------------------
-log_event("Generating Amalgamated Outputs", "Main")
-vars_to_process <- c("attribute", "indicator", "level_assessed")
-wb_amalgamated <- createWorkbook()
+# 4. Processing Loops (Amalgamated & Courses)
+# -------------------------------------------
 
-for (var in vars_to_process) {
-  # 1. Summary Stats
-  stats <- calc_stats(combined_data, var)
-  addWorksheet(wb_amalgamated, paste0("By_", str_to_title(var)))
-  writeData(wb_amalgamated, paste0("By_", str_to_title(var)), stats)
-  
-  # 2. Plots
-  # Dynamic width calculation
-  n_items <- length(unique(combined_data[[var]]))
-  p_width <- if(var == "level_assessed") max(6, n_items * 2) else max(8, n_items * 0.8)
-  
-  p <- plot_distribution(combined_data, var, paste("All Courses - by", var))
-  ggsave(file.path(main_output_dir, paste0("amalgamated_figure_", var, ".png")), 
-         p, width = p_width, height = 6, dpi = 300)
-}
-saveWorkbook(wb_amalgamated, file.path(main_output_dir, "amalgamated_summary.xlsx"), overwrite = TRUE)
+# We treat "Amalgamated" as just another item in a list of things to process
+# This unifies the logic completely.
+processing_queue <- list(list(name = "Amalgamated", data = all_data, folder = out_dir))
 
-# 5. Isolated Plots (Nested Loops)
-# --------------------------------
-log_event("Generating Isolated Plots", "Main")
-iso_dir <- file.path(main_output_dir, "isolated_amalgamated_plots")
-
-for (var in vars_to_process) {
-  # Create subfolder (e.g., "attribute_plots")
-  sub_dir <- file.path(iso_dir, paste0(var, "_plots"))
-  dir.create(sub_dir, recursive = TRUE, showWarnings = FALSE)
+# Add each course to the queue
+for (crs in unique(all_data$course_name)) {
+  clean_n <- clean_filename(as.character(crs))
+  c_folder <- file.path(out_dir, clean_n)
+  dir.create(c_folder, showWarnings = FALSE)
   
-  unique_vals <- unique(combined_data[[var]])
-  unique_vals <- unique_vals[!is.na(unique_vals)]
-  
-  for (val in unique_vals) {
-    # Clean value for filename
-    safe_val <- gsub("\\.", "_", as.character(val))
-    fname <- file.path(sub_dir, paste0(var, "_", safe_val, ".png"))
-    
-    p <- plot_single_iso(combined_data, var, val)
-    ggsave(fname, p, width = 4, height = 6, dpi = 300)
-  }
+  processing_queue[[length(processing_queue) + 1]] <- list(
+    name = as.character(crs),
+    data = all_data %>% filter(course_name == crs),
+    folder = c_folder,
+    prefix = clean_n # Prefix for files
+  )
 }
 
-# 6. Course-Specific Processing (Loop with Warning Logging)
-# ---------------------------------------------------------
-courses <- unique(combined_data$course_name)
+cat("Generating outputs...\n")
 
-for (course in courses) {
-  # We use withCallingHandlers to catch warnings without breaking the loop
+# Process the Queue
+for (item in processing_queue) {
+  # Warning Handler Context
+  current_context <- paste("Processing", item$name)
+  
   withCallingHandlers({
     
-    log_event(paste("Processing outputs for:", course), "CourseLoop")
+    file_pre <- if(item$name == "Amalgamated") "amalgamated" else item$prefix
     
-    # A. Setup
-    clean_name <- clean_filename(as.character(course))
-    course_dir <- file.path(main_output_dir, clean_name)
-    dir.create(course_dir, showWarnings = FALSE)
-    
-    course_data <- combined_data %>% filter(course_name == course)
-    
-    # B. Generate Workbook for this course
-    wb_course <- createWorkbook()
-    
-    # Loop through the 3 variables (Attribute, Indicator, Level)
-    for (var in vars_to_process) {
-      
-      # Statistics
-      c_stats <- calc_stats(course_data, var)
-      sheet_name <- paste0("By_", str_to_title(var))
-      addWorksheet(wb_course, sheet_name)
-      writeData(wb_course, sheet_name, c_stats)
-      
-      # Figure
-      n_items <- length(unique(course_data[[var]]))
-      p_width <- if(var == "level_assessed") max(6, n_items * 2) else max(8, n_items * 0.8)
-      
-      c_plot <- plot_distribution(course_data, var, paste(course, "- by", var))
-      ggsave(file.path(course_dir, paste0(clean_name, "_figure_", var, ".png")),
-             c_plot, width = p_width, height = 6, dpi = 300)
-    }
-    
-    saveWorkbook(wb_course, file.path(course_dir, paste0(clean_name, "_summary.xlsx")), overwrite = TRUE)
+    generate_output_set(
+      data = item$data,
+      folder_path = item$folder,
+      file_prefix = file_pre,
+      title_prefix = item$name,
+      context_str = current_context
+    )
     
   }, warning = function(w) {
-    # --- WARNING HANDLER ---
-    # Log the warning to file with context
-    log_event(w$message, paste("Warning in Course:", course), "WARNING")
-    # Muffle the warning so it doesn't print to console repeatedly/ugly
+    # 1. Log the warning with specific location context
+    log_event(w$message, current_context, "WARNING")
+    # 2. Suppress from console
     invokeRestart("muffleWarning")
-    
   }, error = function(e) {
-    # --- ERROR HANDLER ---
-    log_event(e$message, paste("Error in Course:", course), "ERROR")
+    log_event(e$message, current_context, "ERROR")
   })
 }
 
-# Final Report
-# ------------
-cat("\n=== Processing Complete ===\n")
-cat(paste("Detailed logs saved to:", log_file, "\n"))
-if (length(failed_files) > 0) {
-  cat("! Some input files failed. Check log for details.\n")
-}
+# 5. Isolated Plots (Optional: Kept separate as logic differs slightly)
+# ---------------------------------------------------------------------
+cat("Generating isolated plots...\n")
+iso_dir <- file.path(out_dir, "isolated_amalgamated_plots")
+vars <- c("attribute", "indicator", "level_assessed")
+
+withCallingHandlers({
+  for (v in vars) {
+    sub_dir <- file.path(iso_dir, paste0(v, "_plots"))
+    dir.create(sub_dir, recursive = TRUE, showWarnings = FALSE)
+    
+    for (val in na.omit(unique(all_data[[v]]))) {
+      # Trick: use generic plotter but filter data first
+      sub_d <- all_data %>% filter(.data[[v]] == val)
+      # Create dummy column for x-axis so bar isn't huge
+      sub_d$dummy <- "" 
+      
+      p <- plot_distribution(sub_d, "dummy", paste(v, val)) + 
+        theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + labs(x = NULL)
+      
+      ggsave(file.path(sub_dir, paste0(v, "_", gsub("\\.", "_", val), ".png")), 
+             p, width = 4, height = 6, dpi = 300)
+    }
+  }
+}, warning = function(w) {
+  log_event(w$message, "Isolated Plots", "WARNING")
+  invokeRestart("muffleWarning")
+})
+
+cat(paste("\n✓ Done! Check log at:", log_file, "\n"))
