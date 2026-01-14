@@ -44,7 +44,7 @@ calc_stats <- function(df, group_col) {
 }
 
 # --- Generic Plotter ---
-plot_distribution <- function(data, group_col, title) {
+plot_distribution <- function(data, group_col, title, footnote = NULL) {
   grp_sym <- sym(group_col)
   
   # Stats for labels
@@ -57,7 +57,7 @@ plot_distribution <- function(data, group_col, title) {
     )
   
   # Main Plot
-  data %>%
+  p <- data %>%
     group_by(!!grp_sym, score_label) %>%
     summarise(count = n(), .groups = 'drop') %>%
     group_by(!!grp_sym) %>%
@@ -67,16 +67,25 @@ plot_distribution <- function(data, group_col, title) {
     geom_richtext(aes(label = paste0("<b>", count, "</b><span style='font-size:7pt'>(", sprintf("%.0f", pct), "%)</span>")), 
                   position = position_stack(vjust = 0.5), color = "white", fill = NA, label.color = NA, size = 2.8) +
     geom_text(data = stats, aes(x = !!grp_sym, y = 105, label = label), inherit.aes = FALSE, size = 2, vjust = 0) +
-    scale_fill_manual(values = c("Fail"="#D32F2F", "Minimal"="#FFA726", "Adequate"="#66BB6A", "Exceeds"="#2E7D32")) +
+    scale_fill_manual(values = c("4 - Fail"="#D32F2F", "3 - Minimal"="#FFA726", "2 - Adequate"="#66BB6A", "1 - Exceeds"="#2E7D32"), 
+                      breaks = c("1 - Exceeds", "2 - Adequate", "3 - Minimal", "4 - Fail")) +
     labs(title = str_wrap(title, 40), x = str_to_title(gsub("_", " ", group_col)), y = "% Students", fill = "Score") +
     coord_cartesian(ylim = c(0, 130)) +
     theme_classic(base_size = 14) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1), plot.title = element_text(hjust = 0.5, face = "bold"))
+  
+  # Add footnote if provided
+  if (!is.null(footnote)) {
+    p <- p + labs(caption = footnote) + 
+      theme(plot.caption = element_text(hjust = 0.5, size = 9, color = "gray30"))
+  }
+  
+  return(p)
 }
 
 # --- Master Output Generator (The Loop Shortener) ---
 # This function handles the Excel + 3 Plots logic for ANY dataset (Combined or Single Course)
-generate_output_set <- function(data, folder_path, file_prefix, title_prefix, context_str) {
+generate_output_set <- function(data, folder_path, file_prefix, title_prefix, context_str, footnote = NULL) {
   
   wb <- createWorkbook()
   vars <- c("attribute", "indicator", "level_assessed")
@@ -91,7 +100,7 @@ generate_output_set <- function(data, folder_path, file_prefix, title_prefix, co
     n_items <- length(unique(data[[var]]))
     p_width <- if(var == "level_assessed") max(6, n_items * 2) else max(8, n_items * 0.8)
     
-    p <- plot_distribution(data, var, paste(title_prefix, "-", var))
+    p <- plot_distribution(data, var, paste(title_prefix, "-", var), footnote)
     ggsave(file.path(folder_path, paste0(file_prefix, "_figure_", var, ".png")), 
            p, width = p_width, height = 6, dpi = 300)
   }
@@ -108,9 +117,12 @@ flush.console() # Forces the message to appear immediately
 file_paths <- tk_choose.files(caption = "Select Excel Files", filters = matrix(c("Excel", ".xlsx;.xls"), 1, 2))
 if (length(file_paths) == 0) stop("No files selected.")
 
+# Extract parent folder name for labeling
+parent_folder <- basename(dirname(file_paths[1]))
+
 # Init Log
-log_file <- file.path(dirname(file_paths[1]), "processing_log.txt")
-write(paste("Run Date:", Sys.time(), "\n---"), file = log_file)
+log_file <- file.path(dirname(file_paths[1]), paste0(parent_folder, "_processing_log.txt"))
+write(paste("Run Date:", Sys.time(), "\nParent Folder:", parent_folder, "\n---"), file = log_file)
 
 # 3. Data Ingestion
 # -----------------
@@ -153,20 +165,20 @@ all_data <- bind_rows(lapply(file_paths, process_file))
 
 if (nrow(all_data) == 0) stop("No valid data found.")
 
-# Global Formatting
+  # Global Formatting
 all_data <- all_data %>%
   mutate(
     course_name = factor(course_name),
     attribute = factor(attribute, levels = sort(unique(as.numeric(attribute)))),
     indicator = factor(indicator, levels = sort(unique(as.numeric(indicator)))),
     level_assessed = factor(level_assessed, levels = c("I", "D", "A")),
-    score_label = factor(score, levels = c("4","3","2","1"), labels = c("Fail","Minimal","Adequate","Exceeds"))
+    score_label = factor(score, levels = c("4","3","2","1"), labels = c("4 - Fail","3 - Minimal","2 - Adequate","1 - Exceeds"))
   )
 
 # Output Directory
-out_dir <- file.path(dirname(file_paths[1]), "grade_outputs")
+out_dir <- file.path(dirname(file_paths[1]), paste0(parent_folder, "_grade_outputs"))
 dir.create(out_dir, showWarnings = FALSE)
-write.csv(all_data, file.path(out_dir, "cleaned_grade_data.csv"), row.names = FALSE)
+write.csv(all_data, file.path(out_dir, paste0(parent_folder, "_cleaned_grade_data.csv")), row.names = FALSE)
 
 # 4. Processing Loops (Amalgamated & Courses)
 # -------------------------------------------
@@ -178,14 +190,14 @@ processing_queue <- list(list(name = "Amalgamated", data = all_data, folder = ou
 # Add each course to the queue
 for (crs in unique(all_data$course_name)) {
   clean_n <- clean_filename(as.character(crs))
-  c_folder <- file.path(out_dir, clean_n)
+  c_folder <- file.path(out_dir, paste0(parent_folder, "_", clean_n))
   dir.create(c_folder, showWarnings = FALSE)
   
   processing_queue[[length(processing_queue) + 1]] <- list(
     name = as.character(crs),
     data = all_data %>% filter(course_name == crs),
     folder = c_folder,
-    prefix = clean_n # Prefix for files
+    prefix = paste0(parent_folder, "_", clean_n) # Prefix for files
   )
 }
 
@@ -198,14 +210,15 @@ for (item in processing_queue) {
   
   withCallingHandlers({
     
-    file_pre <- if(item$name == "Amalgamated") "amalgamated" else item$prefix
+    file_pre <- if(item$name == "Amalgamated") paste0(parent_folder, "_amalgamated") else item$prefix
     
     generate_output_set(
       data = item$data,
       folder_path = item$folder,
       file_prefix = file_pre,
       title_prefix = item$name,
-      context_str = current_context
+      context_str = current_context,
+      footnote = paste("Source:", parent_folder)
     )
     
   }, warning = function(w) {
@@ -221,7 +234,7 @@ for (item in processing_queue) {
 # 5. Isolated Plots (Optional: Kept separate as logic differs slightly)
 # ---------------------------------------------------------------------
 cat("Generating isolated plots...\n")
-iso_dir <- file.path(out_dir, "isolated_amalgamated_plots")
+iso_dir <- file.path(out_dir, paste0(parent_folder, "_isolated_amalgamated_plots"))
 vars <- c("attribute", "indicator", "level_assessed")
 
 withCallingHandlers({
@@ -235,11 +248,27 @@ withCallingHandlers({
       # Create dummy column for x-axis so bar isn't huge
       sub_d$dummy <- "" 
       
-      p <- plot_distribution(sub_d, "dummy", paste(v, val)) + 
+      p <- plot_distribution(sub_d, "dummy", paste(v, val), paste("Source:", parent_folder)) + 
         theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + labs(x = NULL)
       
-      ggsave(file.path(sub_dir, paste0(v, "_", gsub("\\.", "_", val), ".png")), 
+      ggsave(file.path(sub_dir, paste0(parent_folder, "_", v, "_", gsub("\\.", "_", val), ".png")), 
              p, width = 4, height = 6, dpi = 300)
+    }
+    
+    # For attribute and indicator, create additional subfolder with level separation
+    if (v %in% c("attribute", "indicator")) {
+      level_sub_dir <- file.path(iso_dir, paste0(v, "_by_level_plots"))
+      dir.create(level_sub_dir, recursive = TRUE, showWarnings = FALSE)
+      
+      for (val in na.omit(unique(all_data[[v]]))) {
+        sub_d <- all_data %>% filter(.data[[v]] == val)
+        
+        # Use level_assessed as x-axis
+        p_level <- plot_distribution(sub_d, "level_assessed", paste(v, val), paste("Source:", parent_folder))
+        
+        ggsave(file.path(level_sub_dir, paste0(parent_folder, "_", v, "_", gsub("\\.", "_", val), "_by_level.png")), 
+               p_level, width = 6, height = 6, dpi = 300)
+      }
     }
   }
 }, warning = function(w) {
