@@ -286,8 +286,13 @@ tryCatch({
         # Use level_assessed as x-axis
         p_level <- plot_distribution(sub_d, "level_assessed", paste(v, val), paste("Source:", parent_folder))
         
-        ggsave(file.path(level_sub_dir, paste0(parent_folder, "_", v, "_", gsub("\\.", "_", val), "_by_level.png")), 
-               p_level, width = 6, height = 6, dpi = 300)
+tryCatch({
+          ggsave(file.path(level_sub_dir, paste0(parent_folder, "_", v, "_", gsub("\\.", "_", val), "_by_level.png")), 
+                 p_level, width = 6, height = 6, dpi = 300)
+        }, error = function(e) {
+          log_event(paste("SKIPPED - ggsave failed:", e$message), 
+                    paste("Isolated by level", v, val), "ERROR")
+        }))
       }
     }
   }
@@ -297,4 +302,5 @@ tryCatch({
 })
 
 cat(paste("\n✓ Done! Check log at:", log_file, "\n"))
+
 
