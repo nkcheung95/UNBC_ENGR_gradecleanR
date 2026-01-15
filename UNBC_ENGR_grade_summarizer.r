@@ -292,7 +292,7 @@ tryCatch({
         }, error = function(e) {
           log_event(paste("SKIPPED - ggsave failed:", e$message), 
                     paste("Isolated by level", v, val), "ERROR")
-        }))
+        })
       }
     }
   }
@@ -302,5 +302,6 @@ tryCatch({
 })
 
 cat(paste("\n✓ Done! Check log at:", log_file, "\n"))
+
 
 
