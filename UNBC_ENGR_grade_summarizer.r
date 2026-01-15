@@ -22,9 +22,19 @@ log_event <- function(msg, context = "General", type = "INFO") {
 
 # --- Generic Clean Filename ---
 clean_filename <- function(name) {
-  name %>% gsub("[ .:]", "_", .) %>% gsub("_{2,}", "_", .) %>% gsub("^_|_$", "", .)
+  name %>% 
+    gsub("[^A-Za-z0-9_-]", "_", .) %>%  # Keep only safe characters
+    gsub("_{2,}", "_", .) %>% 
+    gsub("^_|_$", "", .) %>%
+    substr(1, 100)  # Limit length
 }
-
+# Line 18-23 (insert after clean_filename function)
+# --- Extract Course Code (first 3 digits) ---
+extract_course_code <- function(course_name) {
+  match <- str_extract(course_name, "^.*?\\d{3}")
+  if (is.na(match)) return(clean_filename(course_name))
+  return(clean_filename(match))
+}
 # --- Generic Stats Calculator ---
 calc_stats <- function(df, group_col) {
   df %>%
@@ -100,9 +110,14 @@ generate_output_set <- function(data, folder_path, file_prefix, title_prefix, co
     n_items <- length(unique(data[[var]]))
     p_width <- if(var == "level_assessed") max(6, n_items * 2) else max(8, n_items * 0.8)
     
-    p <- plot_distribution(data, var, paste(title_prefix, "-", var), footnote)
-    ggsave(file.path(folder_path, paste0(file_prefix, "_figure_", var, ".png")), 
-           p, width = p_width, height = 6, dpi = 300)
+   p <- plot_distribution(data, var, paste(title_prefix, "-", var), footnote)
+    tryCatch({
+      ggsave(file.path(folder_path, paste0(file_prefix, "_figure_", var, ".png")), 
+             p, width = p_width, height = 6, dpi = 300)
+    }, error = function(e) {
+      log_event(paste("SKIPPED - ggsave failed:", e$message), 
+                paste(context_str, "- figure", var), "ERROR")
+    })
   }
   
   saveWorkbook(wb, file.path(folder_path, paste0(file_prefix, "_summary.xlsx")), overwrite = TRUE)
@@ -189,7 +204,7 @@ processing_queue <- list(list(name = "Amalgamated", data = all_data, folder = ou
 
 # Add each course to the queue
 for (crs in unique(all_data$course_name)) {
-  clean_n <- clean_filename(as.character(crs))
+clean_n <- extract_course_code(as.character(crs))
   c_folder <- file.path(out_dir, paste0(parent_folder, "_", clean_n))
   dir.create(c_folder, showWarnings = FALSE)
   
@@ -251,8 +266,13 @@ withCallingHandlers({
       p <- plot_distribution(sub_d, "dummy", paste(v, val), paste("Source:", parent_folder)) + 
         theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + labs(x = NULL)
       
-      ggsave(file.path(sub_dir, paste0(parent_folder, "_", v, "_", gsub("\\.", "_", val), ".png")), 
-             p, width = 4, height = 6, dpi = 300)
+tryCatch({
+        ggsave(file.path(sub_dir, paste0(parent_folder, "_", v, "_", gsub("\\.", "_", val), ".png")), 
+               p, width = 4, height = 6, dpi = 300)
+      }, error = function(e) {
+        log_event(paste("SKIPPED - ggsave failed:", e$message), 
+                  paste("Isolated", v, val), "ERROR")
+      })
     }
     
     # For attribute and indicator, create additional subfolder with level separation
@@ -277,3 +297,4 @@ withCallingHandlers({
 })
 
 cat(paste("\n✓ Done! Check log at:", log_file, "\n"))
+
