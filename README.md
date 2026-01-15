@@ -26,32 +26,29 @@ Before running the script, ensure you have the following installed:
 
 ---
 
-## 📖 How to Use
+# How to Use
 
-1. **Execute the Script**: Copy and paste the command in the QUICK START section into RStudio.
-2. **Automatic Setup**: The program will automatically check for and download any required packages (such as `ggplot2`, `dplyr`, and `ggtext`).
-3. **Select Files**:
-* A file selection window will appear.
-* Navigate to your data folder and select all the Excel files you wish to process.
-* **Note:** Files must be in the same folder to be selected together.
+## Steps
 
-
-4. **Retrieve Results**:
-* Once processing is complete, look in the directory where your source files were located.
-* A new folder named `grade_outputs` will have been created containing all your generated figures and summaries.
-
-
+1. **Run the Script** – Copy and paste the Quick Start command into RStudio.
+2. **Automatic Setup** – Required packages install automatically if missing.
+3. **Select Files** – Choose all Excel files from the dialog. Files must be in the same folder.
+4. **Results** – Outputs save to `[source]_out` in your input directory.
+5. **Log File** – A timestamped log (e.g., `[source]_YYYYMMDD_HHMMSS_log.txt`) is generated for each run.
 
 ---
 
-## ⚠️ Important Note on File Selection
+## Troubleshooting
 
-The file selection dialog box often opens **behind** RStudio or other active windows. If the program seems to be "hanging" after you run the command:
+**File dialog hidden?** Minimize windows to find it—it may open behind RStudio.
 
-* Minimize RStudio and other open windows.
-* Look for the "Select Excel files with grade summaries" popup.
+**Errors?** Check the log file, then report issues on GitHub with:
+- Error description
+- Relevant log excerpts  
+- R version and OS
 
+---
 
-### 💡 Pro-Tip
+## Best Practice
 
-*Always use the `source()` command provided above rather than a local copy to ensure you are benefiting from the latest bug fixes and feature updates.*
+Use `source()` instead of local copies to get the latest updates.
