@@ -25,6 +25,7 @@ Before running the script, ensure you have the following installed:
 2. **RStudio Desktop**: [Download from Posit](https://posit.co/download/rstudio-desktop/)
 
 Prepare your files to be merged in a folder named after the subdiscipline for plots and naming (e.g. CIVE_25_26). Folder names **will be truncated to 10 characters max**
+Different disciplines should be stored in unique folders and the program ran separately for each if discipline separation is wanted.
 
 ---
 
@@ -34,9 +35,10 @@ Prepare your files to be merged in a folder named after the subdiscipline for pl
 
 1. **Run the Script** – Copy and paste the Quick Start command into RStudio.
 2. **Automatic Setup** – Required packages install automatically if missing.
-3. **Select Files** – Choose all Excel files from the dialog. Files must be in the same folder.
-4. **Results** – Outputs save to `[source]_out` in your input directory.
-5. **Log File** – A timestamped log (e.g., `[source]_YYYYMMDD_HHMMSS_log.txt`) is generated for each run.
+3. **Input Figure Subheading** – popup input prompt for custom subheadings on all figures for that batch
+4. **Select Files** – Choose all Excel files from the dialog. Files must be in the same folder.
+5. **Results** – Outputs save to `[source]_out` in your input directory.
+6. **Log File** – A timestamped log (e.g., `[source]_YYYYMMDD_HHMMSS_log.txt`) is generated for each run.
 
 ---
 
