@@ -35,7 +35,20 @@ log_event <- function(msg, context = "General", type = "INFO") {
 }
 # --- Header Text Setup ---
 HEADER_TEXT <- "UNBC School of Engineering"  # Edit this text as needed
-HEADER_SUBTITLE <- "Graduate Attribute Assessment 2025-2026"  # Optional subtitle
+# Prompt for academic year
+cat("\n>>> What academic year is this data? (e.g., 2025-2026) <<<\n")
+flush.console()
+academic_year <- readline(prompt = "Academic Year: ")
+
+# If user enters nothing, use current year as default
+if (nchar(trimws(academic_year)) == 0) {
+  current_year <- format(Sys.Date(), "%Y")
+  next_year <- as.numeric(current_year) + 1
+  academic_year <- paste0(current_year, "-", next_year)
+  cat(paste("Using default:", academic_year, "\n"))
+}
+
+HEADER_SUBTITLE <- paste("Graduate Attribute Assessment", academic_year)
 # --- Generic Clean Filename (10 char limit for source folder) ---
 clean_filename <- function(name, max_len = 100) {
   name %>% 
@@ -375,3 +388,4 @@ withCallingHandlers({
 })
 
 cat(paste("\n✓ Done! Check log at:", log_file, "\n"))
+
