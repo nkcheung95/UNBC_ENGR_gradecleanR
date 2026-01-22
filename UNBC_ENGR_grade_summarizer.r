@@ -164,14 +164,14 @@ process_file <- function(fp) {
     colnames(s_data) <- c("student_number", paste0("idx_", 1:length(meta$attr)))
     s_data %>%
       pivot_longer(-student_number, names_to = "idx", values_to = "score") %>%
-      mutate(
-        i = as.numeric(gsub("idx_", "", idx)),
-        course_name = as.character(raw[1, 1]),
-        attribute = str_extract(meta$attr[i], "\\d+"),
-        indicator = str_extract(meta$ind[i], "\\d+\\.?\\d*"),
-        level_assessed = meta$lvl[i],
-        student_id = paste(course_name, student_number, sep = "_")
-      ) %>%
+                   mutate(
+  i = as.numeric(gsub("idx_", "", idx)),
+  course_name = as.character(raw[1, 1]),
+  attribute = str_extract(meta$attr[i], "\\d+"),
+  indicator = as.character(round(as.numeric(str_extract(meta$ind[i], "\\d+\\.?\\d*")), 1)),
+  level_assessed = meta$lvl[i],
+  student_id = paste(course_name, student_number, sep = "_")
+) %>%
       filter(!is.na(score)) %>%
       select(student_id, course_name, attribute, indicator, level_assessed, score)
     
@@ -303,4 +303,5 @@ withCallingHandlers({
 })
 
 cat(paste("\n✓ Done! Check log at:", log_file, "\n"))
+
 
