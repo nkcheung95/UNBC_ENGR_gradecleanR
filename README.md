@@ -24,34 +24,36 @@ Before running the script, ensure you have the following installed:
 1. **Base R**: [Download from CRAN](https://cran.r-project.org/bin/windows/base/)
 2. **RStudio Desktop**: [Download from Posit](https://posit.co/download/rstudio-desktop/)
 
----
+Prepare your files to be merged in a folder named after the subdiscipline for plots and naming (e.g. CIVE_25_26). Folder names **will be truncated to 10 characters max**.
 
-## 📖 How to Use
-
-1. **Execute the Script**: Copy and paste the command in the QUICK START section into RStudio.
-2. **Automatic Setup**: The program will automatically check for and download any required packages (such as `ggplot2`, `dplyr`, and `ggtext`).
-3. **Select Files**:
-* A file selection window will appear.
-* Navigate to your data folder and select all the Excel files you wish to process.
-* **Note:** Files must be in the same folder to be selected together.
-
-
-4. **Retrieve Results**:
-* Once processing is complete, look in the directory where your source files were located.
-* A new folder named `grade_outputs` will have been created containing all your generated figures and summaries.
-
-
+Different disciplines should be stored in unique folders and the program ran separately for each if discipline separation is wanted.
 
 ---
 
-## ⚠️ Important Note on File Selection
+# How to Use
 
-The file selection dialog box often opens **behind** RStudio or other active windows. If the program seems to be "hanging" after you run the command:
+## Steps
 
-* Minimize RStudio and other open windows.
-* Look for the "Select Excel files with grade summaries" popup.
+1. **Run the Script** – Copy and paste the Quick Start command into RStudio.
+2. **Automatic Setup** – Required packages install automatically if missing.
+3. **Input Figure Subheading** – popup input prompt for custom subheadings on all figures for that batch
+4. **Select Files** – Choose all Excel files from the dialog. Files must be in the same folder.
+5. **Results** – Outputs save to `[source]_out` in your input directory.
+6. **Log File** – A timestamped log (e.g., `[source]_YYYYMMDD_HHMMSS_log.txt`) is generated for each run.
 
+---
 
-### 💡 Pro-Tip
+## Troubleshooting
 
-*Always use the `source()` command provided above rather than a local copy to ensure you are benefiting from the latest bug fixes and feature updates.*
+**File dialog hidden?** Minimize windows to find it—it may open behind RStudio.
+
+**Errors?** Check the log file, then report issues on GitHub with:
+- Error description
+- Relevant log excerpts  
+- R version and OS
+
+---
+
+## Best Practice
+
+Use `source()` instead of local copies to get the latest updates.
