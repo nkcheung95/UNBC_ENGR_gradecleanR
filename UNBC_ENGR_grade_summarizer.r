@@ -35,13 +35,15 @@ log_event <- function(msg, context = "General", type = "INFO") {
 }
 # --- Header Text Setup ---
 HEADER_TEXT <- "UNBC School of Engineering"  # Edit this text as needed
-# Prompt for academic year
+# Prompt for academic year in console
 cat("\n>>> What academic year is this data? (e.g., 2025-2026) <<<\n")
+cat("Academic Year: ")
 flush.console()
-academic_year <- readline(prompt = "Academic Year: ")
+
+academic_year <- scan(what = character(), nmax = 1, quiet = TRUE)
 
 # If user enters nothing, use current year as default
-if (nchar(trimws(academic_year)) == 0) {
+if (length(academic_year) == 0 || nchar(trimws(academic_year)) == 0) {
   current_year <- format(Sys.Date(), "%Y")
   next_year <- as.numeric(current_year) + 1
   academic_year <- paste0(current_year, "-", next_year)
@@ -388,4 +390,5 @@ withCallingHandlers({
 })
 
 cat(paste("\n✓ Done! Check log at:", log_file, "\n"))
+
 
