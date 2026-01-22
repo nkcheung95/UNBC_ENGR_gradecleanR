@@ -24,6 +24,8 @@ Before running the script, ensure you have the following installed:
 1. **Base R**: [Download from CRAN](https://cran.r-project.org/bin/windows/base/)
 2. **RStudio Desktop**: [Download from Posit](https://posit.co/download/rstudio-desktop/)
 
+Prepare your files to be merged in a folder named after the subdiscipline for plots and naming (e.g. CIVE_25_26). Folder names **will be truncated to 10 characters max**
+
 ---
 
 # How to Use
