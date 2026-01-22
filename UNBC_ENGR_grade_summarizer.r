@@ -3,7 +3,7 @@
 
 # 1. Setup and Helper Functions
 # ---------------------------------
-required_packages <- c("ggtext", "ggplot2", "readxl", "dplyr", "tidyr", "tcltk", "stringr", "openxlsx", "rlang")
+required_packages <- c("ggtext", "ggplot2", "readxl", "dplyr", "tidyr", "tcltk", "stringr", "openxlsx", "rlang", "gtools")
 
 for (pkg in required_packages) {
   if (!require(pkg, character.only = TRUE)) {
@@ -190,7 +190,7 @@ all_data <- all_data %>%
   mutate(
     course_name = factor(course_name),
     attribute = factor(attribute, levels = sort(unique(as.numeric(attribute)))),
-    indicator = factor(indicator, levels = sort(unique(as.numeric(indicator)))),
+    indicator = factor(indicator, levels = gtools::mixedsort(unique(indicator))),
     level_assessed = factor(level_assessed, levels = c("I", "D", "A")),
     score_label = factor(score, levels = c("4","3","2","1"), labels = c("4 - Fail","3 - Minimal","2 - Adequate","1 - Exceeds"))
   )
@@ -303,3 +303,4 @@ withCallingHandlers({
 })
 
 cat(paste("\n✓ Done! Check log at:", log_file, "\n"))
+
