@@ -3,8 +3,7 @@
 
 # 1. Setup and Helper Functions
 # ---------------------------------
-required_packages <- c("ggtext", "ggplot2", "readxl", "dplyr", "tidyr", "tcltk", "stringr", "openxlsx", "rlang", "gtools")
-
+required_packages <- c("ggtext", "ggplot2", "readxl", "dplyr", "tidyr", "tcltk", "stringr", "openxlsx", "rlang", "gtools", "grid", "rsvg", "png")
 for (pkg in required_packages) {
   if (!require(pkg, character.only = TRUE)) {
     install.packages(pkg, dependencies = TRUE)
@@ -12,14 +11,32 @@ for (pkg in required_packages) {
   }
 }
 
+# --- Logo Setup from URL ---
+# Replace this URL with your logo's direct URL
+LOGO_URL <- "https://www.unbc.ca/themes/custom/unbc/gfx/logo-unbc.svg"
+# Download and load SVG logo
+logo_img <- NULL
+tryCatch({
+  temp_svg <- tempfile(fileext = ".svg")
+  temp_png <- tempfile(fileext = ".png")
+  download.file(LOGO_URL, temp_svg, mode = "wb", quiet = TRUE)
+  # Convert SVG to PNG raster for plotting
+  rsvg::rsvg_png(temp_svg, temp_png, width = 1200)
+  logo_img <- readPNG(temp_png)
+  cat("Logo loaded successfully from URL!\n")
+}, error = function(e) {
+  cat("Error loading logo from URL:", e$message, "\nProceeding without logo.\n")
+})
 # --- Logger Setup ---
 log_event <- function(msg, context = "General", type = "INFO") {
   entry <- sprintf("[%s] [%s] {%s}: %s", Sys.time(), type, context, msg)
   if (exists("log_file")) write(entry, file = log_file, append = TRUE)
   if (type != "WARNING") cat(paste0(entry, "\n"))
 }
-
-# --- Generic Clean Filename (8 char limit for source folder) ---
+# --- Header Text Setup ---
+HEADER_TEXT <- "UNBC School of Engineering"  # Edit this text as needed
+HEADER_SUBTITLE <- "Graduate Attribute Assessment 2025-2026"  # Optional subtitle
+# --- Generic Clean Filename (10 char limit for source folder) ---
 clean_filename <- function(name, max_len = 100) {
   name %>% 
     gsub("[^A-Za-z0-9_-]", "_", .) %>%
@@ -28,11 +45,11 @@ clean_filename <- function(name, max_len = 100) {
     substr(1, max_len)
 }
 
-# --- Extract Course Code (first 3 digits, limit to 8 chars) ---
+# --- Extract Course Code (first 3 digits, limit to 10 chars) ---
 extract_course_code <- function(course_name) {
   match <- str_extract(course_name, "^.*?\\d{3}")
-  if (is.na(match)) return(clean_filename(course_name, 8))
-  return(clean_filename(match, 8))
+  if (is.na(match)) return(clean_filename(course_name, 10))
+  return(clean_filename(match, 10))
 }
 
 # --- Generic Stats Calculator ---
@@ -53,7 +70,7 @@ calc_stats <- function(df, group_col) {
     arrange(across(all_of(group_col)))
 }
 
-# --- Generic Plotter ---
+# --- Generic Plotter with Logo Header ---
 plot_distribution <- function(data, group_col, title, footnote = NULL) {
   grp_sym <- sym(group_col)
   
@@ -80,16 +97,71 @@ plot_distribution <- function(data, group_col, title, footnote = NULL) {
     labs(title = str_wrap(title, 40), x = str_to_title(gsub("_", " ", group_col)), y = "% Students", fill = "Score") +
     coord_cartesian(ylim = c(0, 130)) +
     theme_classic(base_size = 14) +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1), plot.title = element_text(hjust = 0.5, face = "bold"))
-  
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1), 
+      plot.title = element_text(hjust = 0.5, face = "bold"),
+      plot.margin = margin(t = 18, r = 10, b = 10, l = 10)  # ~50 pixels at 300 dpi
+    )
   if (!is.null(footnote)) {
     p <- p + labs(caption = footnote) + 
-      theme(plot.caption = element_text(hjust = 0.5, size = 9, color = "gray30"))
+      theme(plot.caption = element_text(hjust = 0.5, size = 9, color = "gray30"),
+            plot.margin = margin(t = 18, r = 10, b = 10, l = 10))
   }
   
   return(p)
 }
 
+# --- Save plot with logo header ---
+save_plot_with_logo <- function(plot, filepath, width = 8, height = 6, dpi = 300) {
+  tryCatch({
+    if (!is.null(logo_img) || exists("HEADER_TEXT")) {
+      # Create composite with logo and/or text header
+      png(filepath, width = width * dpi, height = (height + 0.8) * dpi, res = dpi)
+      
+      # Layout: header at top, plot below (no gap)
+      grid.newpage()
+      pushViewport(viewport(layout = grid.layout(2, 1, heights = unit(c(0.8, height), "inches"))))
+      
+      # Add header (logo + text)
+      pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 1))
+      
+      # Add green background
+      grid.rect(gp = gpar(fill = "#035642", col = NA))
+      
+      if (!is.null(logo_img)) {
+        grid.raster(logo_img, x = 0.05, y = 0.5, width = unit(1.2, "inches"), just = "left")
+      }
+      
+      if (exists("HEADER_TEXT")) {
+        text_x <- if (!is.null(logo_img)) 0.30 else 0.5
+        text_just <- if (!is.null(logo_img)) "left" else "center"
+        
+        grid.text(HEADER_TEXT, x = text_x, y = 0.65, just = text_just,
+                  gp = gpar(fontsize = 16, fontface = "bold", col = "white"))
+        
+        if (exists("HEADER_SUBTITLE") && nchar(HEADER_SUBTITLE) > 0) {
+          grid.text(HEADER_SUBTITLE, x = text_x, y = 0.35, just = text_just,
+                    gp = gpar(fontsize = 12, col = "white"))
+        }
+      }
+      
+      popViewport()
+      
+      # Add main plot (directly below header, no gap)
+      pushViewport(viewport(layout.pos.row = 2, layout.pos.col = 1))
+      plot_grob <- ggplotGrob(plot)
+      grid.draw(plot_grob)
+      popViewport()
+      
+      dev.off()
+    } else {
+      # No logo or header text, save normally
+      ggsave(filepath, plot, width = width, height = height, dpi = dpi)
+    }
+  }, error = function(e) {
+    stop(paste("Plot save failed:", e$message))
+  })
+}
 # --- Master Output Generator ---
 generate_output_set <- function(data, folder_path, file_prefix, title_prefix, context_str, footnote = NULL) {
   
@@ -119,10 +191,10 @@ generate_output_set <- function(data, folder_path, file_prefix, title_prefix, co
     
     p <- plot_distribution(data, var, paste(title_prefix, "-", var), footnote)
     tryCatch({
-      ggsave(file.path(folder_path, paste0(file_prefix, "_fig_", var_short, ".png")), 
-             p, width = p_width, height = 6, dpi = 300)
+      save_plot_with_logo(p, file.path(folder_path, paste0(file_prefix, "_fig_", var_short, ".png")), 
+                          width = p_width, height = 6, dpi = 300)
     }, error = function(e) {
-      log_event(paste("SKIPPED - ggsave failed:", e$message), 
+      log_event(paste("SKIPPED - plot save failed:", e$message), 
                 paste(context_str, "- figure", var), "ERROR")
     })
   }
@@ -139,8 +211,8 @@ flush.console()
 file_paths <- tk_choose.files(caption = "Select Excel Files", filters = matrix(c("Excel", ".xlsx;.xls"), 1, 2))
 if (length(file_paths) == 0) stop("No files selected.")
 
-# Limit parent folder to 8 chars
-parent_folder <- substr(clean_filename(basename(dirname(file_paths[1]))), 1, 8)
+# Limit parent folder to 10 chars
+parent_folder <- substr(clean_filename(basename(dirname(file_paths[1]))), 1, 10)
 
 # Init Log with timestamp
 timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
@@ -164,14 +236,14 @@ process_file <- function(fp) {
     colnames(s_data) <- c("student_number", paste0("idx_", 1:length(meta$attr)))
     s_data %>%
       pivot_longer(-student_number, names_to = "idx", values_to = "score") %>%
-                   mutate(
-  i = as.numeric(gsub("idx_", "", idx)),
-  course_name = as.character(raw[1, 1]),
-  attribute = str_extract(meta$attr[i], "\\d+"),
-  indicator = as.character(round(as.numeric(str_extract(meta$ind[i], "\\d+\\.?\\d*")), 1)),
-  level_assessed = meta$lvl[i],
-  student_id = paste(course_name, student_number, sep = "_")
-) %>%
+      mutate(
+        i = as.numeric(gsub("idx_", "", idx)),
+        course_name = as.character(raw[1, 1]),
+        attribute = str_extract(meta$attr[i], "\\d+"),
+        indicator = as.character(round(as.numeric(str_extract(meta$ind[i], "\\d+\\.?\\d*")), 1)),
+        level_assessed = meta$lvl[i],
+        student_id = paste(course_name, student_number, sep = "_")
+      ) %>%
       filter(!is.na(score)) %>%
       select(student_id, course_name, attribute, indicator, level_assessed, score)
     
@@ -269,10 +341,10 @@ withCallingHandlers({
         theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + labs(x = NULL)
       
       tryCatch({
-        ggsave(file.path(sub_dir, paste0(parent_folder, "_", var_short, "_", gsub("\\.", "_", val), ".png")), 
-               p, width = 4, height = 6, dpi = 300)
+        save_plot_with_logo(p, file.path(sub_dir, paste0(parent_folder, "_", var_short, "_", gsub("\\.", "_", val), ".png")), 
+                            width = 4, height = 6, dpi = 300)
       }, error = function(e) {
-        log_event(paste("SKIPPED - ggsave failed:", e$message), 
+        log_event(paste("SKIPPED - plot save failed:", e$message), 
                   paste("Isolated", v, val), "ERROR")
       })
     }
@@ -288,10 +360,10 @@ withCallingHandlers({
         p_level <- plot_distribution(sub_d, "level_assessed", paste(v, val), paste("Source:", parent_folder))
         
         tryCatch({
-          ggsave(file.path(level_sub_dir, paste0(parent_folder, "_", var_short, "_", gsub("\\.", "_", val), "_lv.png")), 
-                 p_level, width = 6, height = 6, dpi = 300)
+          save_plot_with_logo(p_level, file.path(level_sub_dir, paste0(parent_folder, "_", var_short, "_", gsub("\\.", "_", val), "_lv.png")), 
+                              width = 6, height = 6, dpi = 300)
         }, error = function(e) {
-          log_event(paste("SKIPPED - ggsave failed:", e$message), 
+          log_event(paste("SKIPPED - plot save failed:", e$message), 
                     paste("Isolated by level", v, val), "ERROR")
         })
       }
@@ -303,5 +375,3 @@ withCallingHandlers({
 })
 
 cat(paste("\n✓ Done! Check log at:", log_file, "\n"))
-
-
