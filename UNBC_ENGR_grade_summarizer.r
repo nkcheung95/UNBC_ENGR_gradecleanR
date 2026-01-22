@@ -35,15 +35,28 @@ log_event <- function(msg, context = "General", type = "INFO") {
 }
 # --- Header Text Setup ---
 HEADER_TEXT <- "UNBC School of Engineering"  # Edit this text as needed
-# Prompt for academic year in console
-cat("\n>>> What academic year is this data? (e.g., 2025-2026) <<<\n")
-cat("Academic Year: ")
+# Prompt for academic year using a dialog box
+cat("\n>>> Enter academic year in the pop-up window <<<\n")
 flush.console()
 
-academic_year <- scan(what = character(), nmax = 1, quiet = TRUE)
+academic_year <- tclvalue(tclVar(""))
+tt <- tktoplevel()
+tkwm.title(tt, "Academic Year Input")
+entry_var <- tclVar("")
+entry_widget <- tkentry(tt, textvariable = entry_var, width = 20)
+tkgrid(tklabel(tt, text = "What academic year is this data?\n(e.g., 2025-2026)"), padx = 10, pady = 10)
+tkgrid(entry_widget, padx = 10, pady = 5)
+
+submit_button <- tkbutton(tt, text = "OK", command = function() {
+  academic_year <<- tclvalue(entry_var)
+  tkdestroy(tt)
+})
+tkgrid(submit_button, pady = 10)
+tkfocus(entry_widget)
+tkwait.window(tt)
 
 # If user enters nothing, use current year as default
-if (length(academic_year) == 0 || nchar(trimws(academic_year)) == 0) {
+if (nchar(trimws(academic_year)) == 0) {
   current_year <- format(Sys.Date(), "%Y")
   next_year <- as.numeric(current_year) + 1
   academic_year <- paste0(current_year, "-", next_year)
@@ -390,5 +403,6 @@ withCallingHandlers({
 })
 
 cat(paste("\n✓ Done! Check log at:", log_file, "\n"))
+
 
 
