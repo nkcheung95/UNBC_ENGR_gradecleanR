@@ -118,7 +118,7 @@ plot_distribution <- function(data, group_col, title, footnote = NULL) {
     geom_richtext(aes(label = paste0("<b>", count, "</b><span style='font-size:7pt'>(", sprintf("%.0f", pct), "%)</span>")), 
                   position = position_stack(vjust = 0.5), color = "white", fill = NA, label.color = NA, size = 2.8) +
     geom_text(data = stats, aes(x = !!grp_sym, y = 105, label = label), inherit.aes = FALSE, size = 2, vjust = 0) +
-    scale_fill_manual(values = c("4 - Fail"="#D32F2F", "3 - Minimal"="#FFA726", "2 - Adequate"="#66BB6A", "1 - Exceeds"="#2E7D32"), 
+    scale_fill_manual(values = c("4 - Fail"="#cd5c5c", "3 - Minimal"="#FFA726", "2 - Adequate"="#66BB6A", "1 - Exceeds"="#2E7D32"), 
                       breaks = c("1 - Exceeds", "2 - Adequate", "3 - Minimal", "4 - Fail")) +
     labs(title = str_wrap(title, 40), x = str_to_title(gsub("_", " ", group_col)), y = "% Students", fill = "Score") +
     coord_cartesian(ylim = c(0, 130)) +
