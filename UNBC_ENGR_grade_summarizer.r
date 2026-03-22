@@ -238,7 +238,7 @@ file_paths <- tk_choose.files(caption = "Select Excel Files", filters = matrix(c
 if (length(file_paths) == 0) stop("No files selected.")
 
 # Limit parent folder to 10 chars
-parent_folder <- substr(clean_filename(basename(dirname(file_paths[1]))), 1, 10)
+parent_folder <- substr(clean_filename(basename(dirname(file_paths[1]))), 1, 11)
 
 # Init Log with timestamp
 timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
