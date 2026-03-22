@@ -84,7 +84,7 @@ calc_stats <- function(df, group_col) {
     group_by(across(all_of(group_col))) %>%
     summarise(
       n_total = n(),
-      meet_pct = round((sum(score %in% c(1, 2, 3), na.rm = TRUE) / n()) * 100, 1),
+      meet_pct = round((sum(score %in% c(1, 2, 3), na.rm = TRUE) / n()) * 100, 2),
       mean_score = mean(as.numeric(score), na.rm = TRUE),
       sd_score = sd(as.numeric(score), na.rm = TRUE),
       n_score_1 = sum(score == 1, na.rm = TRUE),
