@@ -84,7 +84,7 @@ calc_stats <- function(df, group_col) {
     group_by(across(all_of(group_col))) %>%
     summarise(
       n_total = n(),
-      meet_pct = round((sum(score %in% c(1, 2, 3), na.rm = TRUE) / n()) * 100, 2),
+      meet_pct = round((sum(score %in% c(1, 2, 3), na.rm = TRUE) / n()) * 100, 1),
       mean_score = mean(as.numeric(score), na.rm = TRUE),
       sd_score = sd(as.numeric(score), na.rm = TRUE),
       n_score_1 = sum(score == 1, na.rm = TRUE),
@@ -100,19 +100,32 @@ calc_stats <- function(df, group_col) {
 plot_distribution <- function(data, group_col, title, footnote = NULL) {
   grp_sym <- sym(group_col)
   
-  stats <- data %>%
+ stats <- data %>%
     group_by(!!grp_sym) %>%
     summarise(
-      label = sprintf("Meet: %.1f%%\nmean: %.1f\nSD: %.2f", 
-                      sum(score %in% 1:3)/n()*100, mean(as.numeric(score)), sd(as.numeric(score))),
-      .groups = 'drop'
+      n_total   = n(),
+      n_meet    = sum(score %in% 1:3, na.rm = TRUE),
+      mean_s    = mean(as.numeric(score), na.rm = TRUE),
+      sd_s      = sd(as.numeric(score), na.rm = TRUE),
+      .groups   = 'drop'
+    ) %>%
+    mutate(
+      meet_pct = round(n_meet / n_total * 100, 1),
+      label    = sprintf("Meet: %.1f%%\nmean: %.1f\nSD: %.2f", meet_pct, mean_s, sd_s)
     )
   
-  p <- data %>%
+p <- data %>%
     group_by(!!grp_sym, score_label) %>%
     summarise(count = n(), .groups = 'drop') %>%
     group_by(!!grp_sym) %>%
-    mutate(pct = count / sum(count) * 100) %>%
+    mutate(
+      pct_raw   = count / sum(count) * 100,
+      pct_floor = floor(pct_raw),
+      remainder = pct_raw - pct_floor,
+      leftover  = as.integer(round(100 - sum(pct_floor))),
+      rank      = rank(-remainder, ties.method = "first"),
+      pct       = pct_floor + ifelse(rank <= leftover, 1L, 0L)
+    ) %>%
     ggplot(aes(x = !!grp_sym, y = pct, fill = score_label)) +
     geom_bar(stat = "identity", position = position_stack(reverse = TRUE)) +
     geom_richtext(aes(label = paste0("<b>", count, "</b><span style='font-size:7pt'>(", sprintf("%.0f", pct), "%)</span>")), 
